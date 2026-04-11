@@ -2,6 +2,16 @@
 
 Thanks for your interest in contributing! This project is a collection of production-grade engineering skills for AI coding agents.
 
+## Local Development Setup
+
+After cloning, run this once to keep your local Claude Code installation in sync with your working tree:
+
+```bash
+bash scripts/install-dev-hooks.sh
+```
+
+This installs a post-commit hook that automatically rsyncs `skills/`, `agents/`, `references/`, and `AGENTS.md` to your locally installed plugin cache after each commit — no manual reinstall needed.
+
 ## Adding a New Skill
 
 1. Create a directory under `skills/` with a kebab-case name
