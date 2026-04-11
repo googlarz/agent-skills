@@ -61,7 +61,7 @@ fi
 
 # Require the path to be inside the Claude plugin cache directory
 CACHE_DIR="$HOME/.claude/plugins/cache"
-if [[ "$INSTALL_PATH" != "$CACHE_DIR"* ]]; then
+if [[ "$INSTALL_PATH" != "$CACHE_DIR/"* ]]; then
   echo "sync-to-plugin: install path is outside $CACHE_DIR — refusing to sync." >&2
   exit 1
 fi
