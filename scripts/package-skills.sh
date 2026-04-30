@@ -3,8 +3,8 @@
 #
 # A zip is created/updated for a skill when:
 #   - No zip exists yet, OR
-#   - Any file inside the skill directory is newer than the existing zip
-#     (i.e. the skill was edited since it was last packaged)
+#   - The zip contents (file list + sizes) differ from the skill directory
+#     Content-based comparison: reliable on fresh git clones (no timestamp dependency)
 #
 # Usage:
 #   bash scripts/package-skills.sh           # package all skills
@@ -39,10 +39,45 @@ done
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
+# is_stale NAME DIR ZIP
+# Returns 0 (true) when the zip is missing or its contents differ from the directory.
+# Extracts the zip to a temp dir and uses diff -rq for content comparison — no timestamp
+# dependency and catches same-size content changes. Reliable on fresh git clones.
 is_stale() {
-  local dir="$1" zip="$2"
-  # Returns 0 (true) when any file in the skill dir is newer than the zip
-  [ -n "$(find "$dir" -newer "$zip" -type f 2>/dev/null | head -1)" ]
+  local name="$1" dir="$2" zip="$3"
+  [ ! -f "$zip" ] && return 0  # missing → stale
+
+  local tmpdir
+  tmpdir=$(mktemp -d)
+
+  if unzip -q "$zip" -d "$tmpdir" 2>/dev/null; then
+    if diff -rq -x '.DS_Store' -x '__pycache__' -x '.git' \
+         "$dir" "$tmpdir/$name" > /dev/null 2>&1; then
+      # Identical content — not stale (return 1 = false)
+      rm -rf "$tmpdir"
+      return 1
+    fi
+  fi
+
+  # Contents differ or unzip failed → stale (return 0 = true)
+  rm -rf "$tmpdir"
+  return 0
+}
+
+# build_zip NAME ZIP
+# Always rebuilds the zip from scratch using a temp file, then atomically replaces ZIP.
+# Guarantees deleted skill files are never retained in the published archive.
+build_zip() {
+  local name="$1" zip="$2"
+  local tmpzip
+  tmpzip=$(mktemp "${zip}.XXXXXX")
+  if (cd "$SKILLS_DIR" && zip -r "$tmpzip" "$name/" \
+        -x '*.DS_Store' -x '*/__pycache__/*' -x '*/.git/*' > /dev/null); then
+    mv "$tmpzip" "$zip"
+  else
+    rm -f "$tmpzip"
+    return 1
+  fi
 }
 
 package_skill() {
@@ -59,7 +94,7 @@ package_skill() {
     if [ ! -f "$zip" ]; then
       printf 'MISSING  %s.zip\n' "$name"
       return 1
-    elif is_stale "$dir" "$zip"; then
+    elif is_stale "$name" "$dir" "$zip"; then
       printf 'STALE    %s.zip\n' "$name"
       return 1
     else
@@ -69,10 +104,10 @@ package_skill() {
   fi
 
   if [ ! -f "$zip" ]; then
-    (cd "$SKILLS_DIR" && zip -r "$name.zip" "$name/" -x '*.DS_Store' -x '*/__pycache__/*' -x '*/.git/*' > /dev/null)
+    build_zip "$name" "$zip"
     printf 'created  %s.zip\n' "$name"
-  elif is_stale "$dir" "$zip"; then
-    (cd "$SKILLS_DIR" && zip -r "$name.zip" "$name/" -x '*.DS_Store' -x '*/__pycache__/*' -x '*/.git/*' > /dev/null)
+  elif is_stale "$name" "$dir" "$zip"; then
+    build_zip "$name" "$zip"
     printf 'updated  %s.zip\n' "$name"
   else
     printf 'ok       %s.zip\n' "$name"
