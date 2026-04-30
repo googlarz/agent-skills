@@ -66,12 +66,12 @@ section "agent-skills: reference resolution"
 
 # Collect all agent-skills:<name> references across docs and skill files.
 # Uses ERE (-E) which is portable across macOS/BSD and GNU grep.
+# The || true guards prevent set -e from aborting when grep finds no matches.
 refs=$(
   find .claude/commands .gemini/commands skills docs references \
        -name "*.md" -o -name "*.toml" 2>/dev/null \
   | xargs grep -hoE 'agent-skills:[a-z-]+' 2>/dev/null \
-  | grep_o 'agent-skills:[a-z-]+' \
-  | sort -u
+  | sort -u || true
 )
 
 # Also check top-level markdown files
@@ -95,15 +95,13 @@ done <<< "$all_refs"
 
 section "/ship Phase B parity"
 
-# Count numbered bold steps only inside the ## Phase B section of each file.
-# Uses awk to extract Phase B content, then counts lines matching "N. **..."
-# Assigns 0 explicitly when grep-c finds no matches (exit 1) or awk output is empty.
+# Count numbered bold steps inside the ## Phase B section only.
+# Uses awk end-to-end so the pipeline always exits 0 and prints exactly
+# one integer, even when Phase B is empty or the file doesn't exist.
 phase_b_steps() {
   local file="$1"
-  local count
-  count=$(awk '/^## Phase B/,/^## Phase C/' "$file" 2>/dev/null \
-    | { grep -cE '^[0-9]+\. \*\*' 2>/dev/null || echo 0; })
-  echo "${count:-0}"
+  awk '/^## Phase B/{in_b=1} /^## Phase C/{in_b=0} in_b && /^[0-9]+\. \*\*/{c++} END{print c+0}' \
+    "$file" 2>/dev/null || echo 0
 }
 
 claude_steps=$(phase_b_steps .claude/commands/ship.md)
