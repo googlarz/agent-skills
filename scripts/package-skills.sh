@@ -125,6 +125,17 @@ else
     name="$(basename "$dir")"
     package_skill "$name" || status=1
   done < <(find "$SKILLS_DIR" -maxdepth 1 -mindepth 1 -type d | sort)
+
+  # In --check mode, also flag orphaned zips (skill directory deleted but zip not removed)
+  if [ "$CHECK_ONLY" -eq 1 ]; then
+    while IFS= read -r zip; do
+      name="$(basename "$zip" .zip)"
+      if [ ! -d "$SKILLS_DIR/$name" ]; then
+        printf 'ORPHAN   %s.zip\n' "$name"
+        status=1
+      fi
+    done < <(find "$SKILLS_DIR" -maxdepth 1 -mindepth 1 -name "*.zip" -type f | sort)
+  fi
 fi
 
 if [ "$CHECK_ONLY" -eq 1 ] && [ "$status" -ne 0 ]; then
