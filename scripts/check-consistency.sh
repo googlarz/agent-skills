@@ -145,9 +145,15 @@ else
   for f in "${lifecycle_files[@]}"; do
     [ -f "$f" ] || continue
     while IFS= read -r line; do
-      # Match any line containing shipping-and-launch in a lifecycle-mapping context
+      # Match any line containing shipping-and-launch in a lifecycle-mapping context:
+      #   - SHIP → ...                  (AGENTS.md, opencode-setup.md)
+      #   **Ship:** ...                 (CLAUDE.md)
+      #   Before deploy: ...            (getting-started.md)
+      #   | `/ship` | ...               (getting-started.md command table)
+      #   | Ship | shipping-and-launch  (using-agent-skills Quick Reference)
+      #   Deploying/launching? ...      (using-agent-skills routing tree)
       if echo "$line" | grep -qE \
-           '[-*] SHIP[[:space:]]+→|[*][*]Ship:[*][*]|Before deploy:|^\|[[:space:]]+.`/ship`|Deploying/launching'; then
+           '[-*] SHIP[[:space:]]+→|\*\*Ship:\*\*|Before deploy:|^\|[[:space:]]+`/ship`|\| Ship \|[[:space:]]+shipping-and-launch|Deploying/launching'; then
         if echo "$line" | grep -q "shipping-and-launch" && \
            ! echo "$line" | grep -q "observability-and-monitoring"; then
           fail "$f: lifecycle mapping omits observability-and-monitoring: $line"
