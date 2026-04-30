@@ -42,16 +42,21 @@ section "Skill count"
 
 actual_count=$(find skills -maxdepth 1 -mindepth 1 -type d | wc -l | tr -d ' ')
 
-# Extract every number that appears directly before "skill" or "Skills" in README
-readme_counts=$(grep_o '[0-9]+ [Ss]kills?' README.md | grep_o '^[0-9]+' | sort -u)
+# Only validate total-count claims, not sub-counts like "20 core lifecycle skills".
+# Total counts appear in two specific places:
+#   "## All N Skills"   (section heading)
+#   "# N skills ("      (directory tree comment)
+total_counts=$(grep -oE '## All [0-9]+ [Ss]kills?|# [0-9]+ skills \(' README.md \
+  | grep_o '[0-9]+' | sort -u)
 
 mismatch=0
 while IFS= read -r n; do
+  [ -z "$n" ] && continue
   if [ "$n" != "$actual_count" ]; then
-    fail "README says '$n skills' but found $actual_count skill directories"
+    fail "README total skill count says '$n' but found $actual_count skill directories"
     mismatch=1
   fi
-done <<< "$readme_counts"
+done <<< "$total_counts"
 
 [ "$mismatch" -eq 0 ] && pass "README skill count matches directories ($actual_count)"
 
@@ -92,10 +97,13 @@ section "/ship Phase B parity"
 
 # Count numbered bold steps only inside the ## Phase B section of each file.
 # Uses awk to extract Phase B content, then counts lines matching "N. **..."
+# Assigns 0 explicitly when grep-c finds no matches (exit 1) or awk output is empty.
 phase_b_steps() {
   local file="$1"
-  awk '/^## Phase B/,/^## Phase C/' "$file" 2>/dev/null \
-    | grep -cE '^[0-9]+\. \*\*' || echo 0
+  local count
+  count=$(awk '/^## Phase B/,/^## Phase C/' "$file" 2>/dev/null \
+    | { grep -cE '^[0-9]+\. \*\*' 2>/dev/null || echo 0; })
+  echo "${count:-0}"
 }
 
 claude_steps=$(phase_b_steps .claude/commands/ship.md)
