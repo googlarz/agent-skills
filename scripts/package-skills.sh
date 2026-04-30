@@ -48,7 +48,10 @@ is_stale() {
   [ ! -f "$zip" ] && return 0  # missing → stale
 
   local tmpdir
-  tmpdir=$(mktemp -d)
+  tmpdir=$(mktemp -d) || {
+    printf 'package-skills: mktemp -d failed; cannot compare zip contents\n' >&2
+    return 0  # conservative: treat as stale so --check fails visibly
+  }
 
   if unzip -q "$zip" -d "$tmpdir" 2>/dev/null; then
     if diff -rq -x '.DS_Store' -x '__pycache__' -x '.git' \
